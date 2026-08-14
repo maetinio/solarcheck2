@@ -22,8 +22,8 @@ class CircularGauge(ctk.CTkFrame):
     def __init__(
         self,
         master,
-        size: int = 108,
-        thickness: int = 10,
+        size: int = 78,
+        thickness: int = 8,
         **kwargs,
     ) -> None:
         super().__init__(master, fg_color="transparent", **kwargs)
@@ -44,7 +44,7 @@ class CircularGauge(ctk.CTkFrame):
             highlightthickness=0,
             bg=theme.CARD_BG,
         )
-        self._canvas.pack(side="left", padx=(0, 14))
+        self._canvas.pack(side="left", padx=(0, 10))
 
         # Textblock rechts vom Ring: großer Wert + zwei Meta-Zeilen
         self._textblock = ctk.CTkFrame(self._reihe, fg_color="transparent")

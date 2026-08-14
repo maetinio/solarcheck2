@@ -8,6 +8,10 @@ Jede Kachel besteht aus drei Zonen:
 
 Die Kachel kümmert sich außerdem um die obere Akzentlinie und den
 dezenten Hover-Effekt (Rahmen hellt sich auf).
+
+Zusätzlich enthält dieses Modul den dritten Anzeigetyp StatValue
+("große Zahl") - er ist reine Label-Komposition und braucht daher keine
+eigene Zeichenlogik wie Gauge oder Meter.
 """
 
 from __future__ import annotations
@@ -49,7 +53,7 @@ class Tile(ctk.CTkFrame):
 
         # --- Innerer Container mit Innenabstand -------------------------
         self._innen = ctk.CTkFrame(self, fg_color="transparent")
-        self._innen.pack(fill="both", expand=True, padx=14, pady=(10, 12))
+        self._innen.pack(fill="both", expand=True, padx=12, pady=(8, 10))
 
         # --- Kopf: Icon + Titel/Untertitel -------------------------------
         kopf = ctk.CTkFrame(self._innen, fg_color="transparent")
@@ -91,9 +95,19 @@ class Tile(ctk.CTkFrame):
         )
         self._untertitel_label.pack(fill="x", anchor="w")
 
+        # Warnzeichen rechts oben, standardmäßig leer (siehe set_warnung).
+        self._warn_label = ctk.CTkLabel(
+            kopf,
+            text="",
+            font=(theme.FONT_FAMILY_UI_REGULAR, 15),
+            text_color=theme.ACCENT_YELLOW,
+            width=18,
+        )
+        self._warn_label.pack(side="right", anchor="n")
+
         # --- Body: freier Slot, vertikal zentriert -----------------------
         self.body = ctk.CTkFrame(self._innen, fg_color="transparent")
-        self.body.pack(fill="both", expand=True, pady=(8, 8))
+        self.body.pack(fill="both", expand=True, pady=(6, 6))
 
         # --- Buttonleiste --------------------------------------------------
         self._button_leiste = ctk.CTkFrame(self._innen, fg_color="transparent")
@@ -105,10 +119,14 @@ class Tile(ctk.CTkFrame):
             widget.bind("<Enter>", self._bei_hover_start)
             widget.bind("<Leave>", self._bei_hover_ende)
 
-    def set_untertitel(self, text: str) -> None:
-        """Aktualisiert die Untertitel-Zeile (z. B. lokale IP, OS-Name)."""
+    def set_untertitel(self, text: str, max_zeichen: int = 26) -> None:
+        """Aktualisiert die Untertitel-Zeile (z. B. lokale IP, OS-Name).
+
+        Zu lange Texte werden gekürzt, damit sie die Kachel nicht sprengen.
+        """
         try:
-            self._untertitel_label.configure(text=text)
+            gekuerzt = text if len(text) <= max_zeichen else text[: max_zeichen - 1] + "…"
+            self._untertitel_label.configure(text=gekuerzt)
         except Exception:
             pass
 
@@ -173,7 +191,7 @@ class Tile(ctk.CTkFrame):
             text_color=text_color if aktiviert else theme.TEXT_DIM,
             font=(theme.FONT_FAMILY_UI_REGULAR, theme.FONT_SIZE_LABEL, "bold"),
             corner_radius=10,
-            height=32,
+            height=30,
             state="normal" if aktiviert else "disabled",
         )
         # Ohne Hover-Rand für dezente Buttons per Bind nachrüsten, da
@@ -192,7 +210,6 @@ class Tile(ctk.CTkFrame):
                 ),
             )
 
-        anzahl_vorher = len(self._buttons)
         self._buttons.append(button)
         self._buttons_neu_anordnen()
         return button
@@ -202,5 +219,114 @@ class Tile(ctk.CTkFrame):
         for button in self._buttons:
             button.pack_forget()
         for index, button in enumerate(self._buttons):
-            padx = (0, 8) if index < len(self._buttons) - 1 else (0, 0)
+            padx = (0, 6) if index < len(self._buttons) - 1 else (0, 0)
             button.pack(side="left", fill="x", expand=True, padx=padx)
+
+    def set_button_zustand(self, index: int, aktiviert: bool) -> None:
+        """Aktiviert/deaktiviert einen Button nachträglich (z. B. Sensor fehlt)."""
+        try:
+            button = self._buttons[index]
+            button.configure(
+                state="normal" if aktiviert else "disabled",
+                text_color=theme.TEXT_MUTED if aktiviert else theme.TEXT_DIM,
+            )
+        except Exception:
+            pass
+
+    def set_akzent(self, farbe: str) -> None:
+        """Färbt die obere Akzentlinie um (z. B. bei Temperatur-Warnung)."""
+        try:
+            if farbe != self._akzentfarbe:
+                self._akzentlinie.configure(fg_color=farbe)
+                self._akzentfarbe = farbe
+        except Exception:
+            pass
+
+    def set_warnung(self, aktiv: bool) -> None:
+        """Blendet ein Warnzeichen rechts oben in der Kopfzeile ein/aus."""
+        try:
+            if aktiv:
+                self._warn_label.configure(text="⚠")
+            else:
+                self._warn_label.configure(text="")
+        except Exception:
+            pass
+
+
+class StatValue(ctk.CTkFrame):
+    """Dritter Anzeigetyp: sehr große Zahl mit Einheit und Unterzeile.
+
+    Wird für Netzwerk, Autostart, Papierkorb und Temporäre Dateien
+    verwendet. Über kompakt=True lassen sich zwei Werte platzsparend
+    untereinander stapeln (Down-/Upload in der Netzwerk-Kachel).
+    """
+
+    def __init__(
+        self,
+        master,
+        farbe: str = theme.ACCENT_BLUE,
+        kompakt: bool = False,
+        **kwargs,
+    ) -> None:
+        super().__init__(master, fg_color="transparent", **kwargs)
+
+        self._farbe = farbe
+        zahl_groesse = 22 if kompakt else theme.FONT_SIZE_VALUE_LARGE
+
+        # Zahl und Einheit sitzen in einer Zeile auf gemeinsamer Grundlinie.
+        zahlen_zeile = ctk.CTkFrame(self, fg_color="transparent")
+        zahlen_zeile.pack(anchor="w")
+
+        self._zahl_label = ctk.CTkLabel(
+            zahlen_zeile,
+            text="—",
+            font=(theme.FONT_FAMILY_MONO, zahl_groesse, "bold"),
+            text_color=farbe,
+            anchor="w",
+        )
+        self._zahl_label.pack(side="left")
+
+        self._einheit_label = ctk.CTkLabel(
+            zahlen_zeile,
+            text="",
+            font=(theme.FONT_FAMILY_UI_REGULAR, theme.FONT_SIZE_LABEL, "bold"),
+            text_color=theme.TEXT_MUTED,
+            anchor="w",
+        )
+        self._einheit_label.pack(side="left", padx=(4, 0), pady=(6, 0))
+
+        # Die Unterzeile wird erst eingeblendet, wenn sie Text bekommt -
+        # eine leere Zeile würde sonst unnötig Kachelhöhe verbrauchen.
+        self._unterzeile_label = ctk.CTkLabel(
+            self,
+            text="",
+            font=(theme.FONT_FAMILY_UI_REGULAR, theme.FONT_SIZE_LABEL),
+            text_color=theme.TEXT_MUTED,
+            anchor="w",
+            justify="left",
+        )
+        self._unterzeile_sichtbar = False
+
+    def set_value(
+        self,
+        zahl: str,
+        einheit: str = "",
+        unterzeile: str = "",
+        farbe: Optional[str] = None,
+    ) -> None:
+        """Aktualisiert Zahl, Einheit und Unterzeile ohne Neuaufbau."""
+        try:
+            self._zahl_label.configure(text=zahl, text_color=farbe or self._farbe)
+            self._einheit_label.configure(text=einheit)
+            self._unterzeile_label.configure(text=unterzeile)
+
+            # Unterzeile nur einblenden, wenn sie tatsächlich Text hat.
+            soll_sichtbar = bool(unterzeile)
+            if soll_sichtbar != self._unterzeile_sichtbar:
+                if soll_sichtbar:
+                    self._unterzeile_label.pack(anchor="w")
+                else:
+                    self._unterzeile_label.pack_forget()
+                self._unterzeile_sichtbar = soll_sichtbar
+        except Exception:
+            pass
