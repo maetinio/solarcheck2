@@ -88,12 +88,26 @@ dafür nötige DLL liegt aus Lizenzgründen nicht bei:
 
 1. `LibreHardwareMonitorLib.dll` von der offiziellen Quelle herunterladen:
    <https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases>
-2. Die Datei in den Ordner **`lib/`** dieses Projekts legen:
+2. Die Datei (und am besten auch die im selben ZIP enthaltene
+   `HidSharp.dll`) in den Ordner **`lib/`** dieses Projekts legen:
    ```
    system-dashboard/lib/LibreHardwareMonitorLib.dll
+   system-dashboard/lib/HidSharp.dll
    ```
-3. Die App als **Administrator** starten — ohne erhöhte Rechte geben die
+3. Falls Windows die heruntergeladenen DLLs blockiert (Rechtsklick →
+   Eigenschaften → „Zulassen"), in PowerShell: `Unblock-File lib\*.dll`
+4. Die App als **Administrator** starten — ohne erhöhte Rechte geben die
    Sensoren in der Regel keine Werte zurück.
+
+Bequem per PowerShell (aus dem Ordner `system-dashboard/`):
+
+```powershell
+Invoke-WebRequest -Uri "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest/download/LibreHardwareMonitor-net472.zip" -OutFile lhm.zip
+Expand-Archive lhm.zip -DestinationPath lhm -Force
+Copy-Item lhm\LibreHardwareMonitorLib.dll lib\
+Copy-Item lhm\HidSharp.dll lib\ -ErrorAction SilentlyContinue
+Unblock-File lib\*.dll
+```
 
 Fehlt die DLL, laufen die Sensoren nicht oder es findet sich kein passender
 Sensor, zeigen beide Temperatur-Kacheln sauber **„n/a"** mit grauem Ring und
