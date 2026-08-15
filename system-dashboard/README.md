@@ -192,23 +192,29 @@ system-dashboard/
 ## Als einzelne .exe verpacken
 
 Mit **PyInstaller** lässt sich die App zu einer einzelnen ausführbaren Datei
-bündeln:
+bündeln. Empfohlener Befehl (aus dem Ordner `system-dashboard/`, die
+Sensor-DLLs müssen dafür bereits in `lib/` liegen):
 
 ```bat
 pip install pyinstaller
-pyinstaller --onefile --windowed --add-data "lib;lib" main.py
+pyinstaller --onefile --windowed --uac-admin --name System-Dashboard --add-data "lib;lib" --collect-all customtkinter --collect-all pythonnet --collect-all clr_loader main.py
 ```
 
-Die fertige Datei liegt anschließend unter `dist\main.exe`.
+Die fertige Datei liegt anschließend unter `dist\System-Dashboard.exe`.
 
 Hinweise:
 
 * `--windowed` verhindert, dass beim Start ein Konsolenfenster aufgeht.
-* `--add-data "lib;lib"` nimmt die LibreHardwareMonitor-DLL mit ins Paket.
+* `--add-data "lib;lib"` nimmt die LibreHardwareMonitor-DLLs mit ins Paket.
   Unter Windows ist das Trennzeichen ein **Semikolon** (nicht `:`).
+* `--collect-all customtkinter` bündelt die Theme-Dateien von customtkinter -
+  ohne sie startet die gepackte App nicht.
+* `--collect-all pythonnet --collect-all clr_loader` bündelt die
+  .NET-Brücke vollständig (Python.Runtime.dll und die Runtime-Lader) -
+  sonst bleiben die Temperatur-Kacheln in der .exe auf "n/a".
 * Ein eigenes Icon lässt sich mit `--icon meinicon.ico` setzen.
-* Falls customtkinter beim Start Ressourcen vermisst, hilft zusätzlich
-  `--collect-all customtkinter`.
+* Der erste Start einer frisch gebauten .exe kann von Windows SmartScreen
+  angehalten werden: "Weitere Informationen" → "Trotzdem ausführen".
 
 ### Die .exe standardmäßig als Administrator starten
 
@@ -221,12 +227,10 @@ Haken bei **„Programm als Administrator ausführen"** → *Übernehmen*.
 
 **B. Fest ins Programm einbauen (UAC-Manifest):**
 
-```bat
-pyinstaller --onefile --windowed --uac-admin --add-data "lib;lib" main.py
-```
-
-`--uac-admin` hinterlegt im Programm-Manifest, dass Windows beim Start
-grundsätzlich die UAC-Abfrage anzeigt.
+Das `--uac-admin` im empfohlenen Befehl oben hinterlegt im
+Programm-Manifest, dass Windows beim Start grundsätzlich die UAC-Abfrage
+anzeigt - die Temperatursensoren funktionieren dann direkt. Wer die .exe
+lieber ohne erzwungene Abfrage baut, lässt `--uac-admin` einfach weg.
 
 Wird die App ohne Adminrechte gestartet, funktioniert sie trotzdem — die
 betroffenen Aktionen sind dann lediglich mit 🛡 ausgegraut, und über die Pille
