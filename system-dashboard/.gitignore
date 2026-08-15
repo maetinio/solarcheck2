@@ -1,0 +1,11 @@
+# Python-Bytecode
+__pycache__/
+*.pyc
+
+# PyInstaller-Ausgaben
+build/
+dist/
+*.spec
+
+# Die LibreHardwareMonitor-DLL wird nicht mitversioniert (siehe README)
+lib/*.dll
