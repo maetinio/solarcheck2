@@ -26,6 +26,7 @@ class Meter(ctk.CTkFrame):
 
         self._kompakt = kompakt
         self._titel_prefix = ""
+        self._letzter_stand: object = None
         balken_hoehe = 8 if kompakt else 12
 
         # Infozeile - in der kompakten Variante steht hier alles drin.
@@ -69,10 +70,16 @@ class Meter(ctk.CTkFrame):
             self._frei_label.pack(fill="x")
 
     def set_titel(self, text: str) -> None:
-        """Setzt den festen Teil der Infozeile (kompakte Variante, z. B. "D:")."""
+        """Setzt den festen Teil der Infozeile (kompakte Variante, z. B. "D:").
+
+        Schreibt das Label nicht selbst - die komplette Zeile baut
+        set_value() zusammen. Bei geändertem Präfix wird dessen
+        Änderungs-Merker zurückgesetzt, damit die Zeile neu entsteht.
+        """
         try:
-            self._titel_prefix = text
-            self._titel_label.configure(text=text)
+            if text != self._titel_prefix:
+                self._titel_prefix = text
+                self._letzter_stand = None
         except Exception:
             pass
 
@@ -86,8 +93,17 @@ class Meter(ctk.CTkFrame):
         """Aktualisiert Balkenstand und Beschriftung ohne Neuaufbau."""
         try:
             prozent = 0.0 if percent is None else max(0.0, min(100.0, float(percent)))
+            balken_farbe = farbe or theme.status_color(prozent)
+
+            # Nur bei tatsächlicher Änderung neu zeichnen (verhindert das
+            # sichtbare "Blitzen" der Zahlen bei jedem GUI-Tick).
+            stand = (round(prozent, 1), belegt_text, frei_text, balken_farbe)
+            if stand == self._letzter_stand:
+                return
+            self._letzter_stand = stand
+
             self._balken.set(prozent / 100.0)
-            self._balken.configure(progress_color=farbe or theme.status_color(prozent))
+            self._balken.configure(progress_color=balken_farbe)
 
             if self._kompakt:
                 # Alles in eine Zeile: "D:  ·  62 %  ·  120 GB frei"

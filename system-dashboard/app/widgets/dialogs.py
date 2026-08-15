@@ -131,7 +131,7 @@ class _BasisDialog(ctk.CTkToplevel):
             text=text,
             command=befehl,
             width=1,
-            height=34,
+            height=38,
             corner_radius=10,
             fg_color=fg,
             hover_color=hover,
@@ -153,7 +153,14 @@ class BestaetigungsDialog(_BasisDialog):
         bestaetigen_text: str = "Fortfahren",
         gefaehrlich: bool = True,
     ) -> None:
-        super().__init__(master, titel, breite=440, hoehe=225)
+        # Höhe an die Textlänge anpassen: bei langen Nachrichten (z. B. der
+        # Kategorienliste der Reinigung) würden die Buttons sonst
+        # zusammengequetscht. Grobe Schätzung: 50 Zeichen je umbrochener Zeile.
+        zeilen = sum(
+            max(1, len(zeile) // 50 + 1) for zeile in nachricht.split("\n")
+        )
+        hoehe = max(225, min(460, 155 + 19 * zeilen))
+        super().__init__(master, titel, breite=440, hoehe=hoehe)
 
         akzent = theme.ACCENT_YELLOW if gefaehrlich else theme.ACCENT_BLUE
         self._titelzeile("⚠" if gefaehrlich else "ℹ", titel, akzent)

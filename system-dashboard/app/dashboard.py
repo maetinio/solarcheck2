@@ -917,26 +917,32 @@ class Dashboard(ctk.CTk):
     def _update_weitere_laufwerke(self, daten: dict) -> None:
         laufwerke = daten.get("weitere_disks") or []
 
-        if not laufwerke:
-            for meter in self._meter_weitere:
+        # Ein-/Ausblenden der Balken nur bei Änderung der Laufwerksanzahl -
+        # pack()/pack_forget() bei jedem Tick würde sichtbar flackern.
+        sichtbar = min(len(laufwerke), len(self._meter_weitere))
+        if sichtbar != getattr(self, "_weitere_sichtbar", -1):
+            self._weitere_sichtbar = sichtbar
+            self._label_keine_weiteren.pack_forget()
+            for index, meter in enumerate(self._meter_weitere):
                 meter.pack_forget()
-            self._label_keine_weiteren.pack(expand=True)
+                if index < sichtbar:
+                    meter.pack(fill="x", pady=(0, 6))
+            if sichtbar == 0:
+                self._label_keine_weiteren.pack(expand=True)
+
+        if not laufwerke:
             self._kachel_weitere.set_untertitel("keine gefunden")
             return
 
-        self._label_keine_weiteren.pack_forget()
-        for index, meter in enumerate(self._meter_weitere):
-            if index < len(laufwerke):
-                eintrag = laufwerke[index]
-                meter.pack(fill="x", pady=(0, 6))
-                meter.set_titel(eintrag["laufwerk"].rstrip("\\"))
-                meter.set_value(
-                    eintrag["percent"],
-                    f"{eintrag['percent']:.0f} %",
-                    f"{eintrag['free_gb']:.0f} GB frei",
-                )
-            else:
-                meter.pack_forget()
+        for index in range(sichtbar):
+            eintrag = laufwerke[index]
+            meter = self._meter_weitere[index]
+            meter.set_titel(eintrag["laufwerk"].rstrip("\\"))
+            meter.set_value(
+                eintrag["percent"],
+                f"{eintrag['percent']:.0f} %",
+                f"{eintrag['free_gb']:.0f} GB frei",
+            )
 
         namen = " · ".join(eintrag["laufwerk"].rstrip("\\") for eintrag in laufwerke)
         self._kachel_weitere.set_untertitel(namen)
@@ -1078,21 +1084,34 @@ class Dashboard(ctk.CTk):
             zahl, einheit = f"{mb:.0f}", "MB"
         self._stat_temp.set_value(zahl, einheit, "belegt durch Temp-Dateien")
 
+    @staticmethod
+    def _label_text_setzen(label, text: str) -> None:
+        """Schreibt ein Label nur bei tatsächlicher Änderung (kein Flackern)."""
+        try:
+            if label.cget("text") != text:
+                label.configure(text=text)
+        except Exception:
+            pass
+
     def _update_windows_update(self, daten: dict) -> None:
         update = daten.get("update")
         if update is None:
             return
-        self._label_update.configure(text=update["text"])
+        self._label_text_setzen(self._label_update, update["text"])
         farbe = theme.ACCENT_BLUE if update["ok"] else theme.ACCENT_YELLOW
-        self._update_punkt_canvas.itemconfigure(self._update_punkt_id, fill=farbe)
+        if farbe != getattr(self, "_update_punkt_farbe", None):
+            self._update_punkt_farbe = farbe
+            self._update_punkt_canvas.itemconfigure(self._update_punkt_id, fill=farbe)
         self._kachel_update.set_akzent(farbe)
 
     def _update_system(self, daten: dict) -> None:
         system = daten.get("system")
         if system is None:
             return
-        self._label_laufzeit.configure(text=system["laufzeit"])
-        self._label_hostname.configure(text=f"Laufzeit · {system['hostname']}")
+        self._label_text_setzen(self._label_laufzeit, system["laufzeit"])
+        self._label_text_setzen(
+            self._label_hostname, f"Laufzeit · {system['hostname']}"
+        )
         self._kachel_system.set_untertitel(system["os_name"])
 
     def _manuelle_aktualisierung(self, still: bool = False) -> None:

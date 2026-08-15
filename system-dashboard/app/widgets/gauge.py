@@ -117,6 +117,19 @@ class CircularGauge(ctk.CTkFrame):
         dargestellt, der Wert zeigt "n/a".
         """
         try:
+            # Nur bei tatsächlicher Änderung neu zeichnen - sonst "blitzen"
+            # die Zahlen bei jedem GUI-Tick, obwohl sich nichts geändert hat.
+            stand = (
+                na,
+                None if percent is None else round(float(percent), 1),
+                wert_text,
+                meta_oben,
+                meta_unten,
+                farbe,
+            )
+            if stand == getattr(self, "_letzter_stand", None):
+                return
+            self._letzter_stand = stand
             if na or percent is None:
                 if self._bogen_id is not None:
                     self._canvas.itemconfigure(self._bogen_id, extent=0)

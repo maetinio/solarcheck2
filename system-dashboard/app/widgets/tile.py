@@ -123,10 +123,13 @@ class Tile(ctk.CTkFrame):
         """Aktualisiert die Untertitel-Zeile (z. B. lokale IP, OS-Name).
 
         Zu lange Texte werden gekürzt, damit sie die Kachel nicht sprengen.
+        Geschrieben wird nur bei tatsächlicher Änderung (kein Flackern).
         """
         try:
             gekuerzt = text if len(text) <= max_zeichen else text[: max_zeichen - 1] + "…"
-            self._untertitel_label.configure(text=gekuerzt)
+            if gekuerzt != getattr(self, "_letzter_untertitel", None):
+                self._letzter_untertitel = gekuerzt
+                self._untertitel_label.configure(text=gekuerzt)
         except Exception:
             pass
 
@@ -223,13 +226,19 @@ class Tile(ctk.CTkFrame):
             button.pack(side="left", fill="x", expand=True, padx=padx)
 
     def set_button_zustand(self, index: int, aktiviert: bool) -> None:
-        """Aktiviert/deaktiviert einen Button nachträglich (z. B. Sensor fehlt)."""
+        """Aktiviert/deaktiviert einen Button nachträglich (z. B. Sensor fehlt).
+
+        Schreibt nur bei tatsächlicher Zustandsänderung, da diese Methode
+        aus dem GUI-Tick heraus zyklisch aufgerufen wird.
+        """
         try:
             button = self._buttons[index]
-            button.configure(
-                state="normal" if aktiviert else "disabled",
-                text_color=theme.TEXT_MUTED if aktiviert else theme.TEXT_DIM,
-            )
+            gewuenscht = "normal" if aktiviert else "disabled"
+            if button.cget("state") != gewuenscht:
+                button.configure(
+                    state=gewuenscht,
+                    text_color=theme.TEXT_MUTED if aktiviert else theme.TEXT_DIM,
+                )
         except Exception:
             pass
 
@@ -245,10 +254,9 @@ class Tile(ctk.CTkFrame):
     def set_warnung(self, aktiv: bool) -> None:
         """Blendet ein Warnzeichen rechts oben in der Kopfzeile ein/aus."""
         try:
-            if aktiv:
-                self._warn_label.configure(text="⚠")
-            else:
-                self._warn_label.configure(text="")
+            if aktiv != getattr(self, "_warnung_aktiv", None):
+                self._warnung_aktiv = aktiv
+                self._warn_label.configure(text="⚠" if aktiv else "")
         except Exception:
             pass
 
@@ -316,6 +324,13 @@ class StatValue(ctk.CTkFrame):
     ) -> None:
         """Aktualisiert Zahl, Einheit und Unterzeile ohne Neuaufbau."""
         try:
+            # Nur bei tatsächlicher Änderung neu zeichnen ("Zahlenblitzer"
+            # vermeiden, wenn der GUI-Tick denselben Wert erneut setzt).
+            stand = (zahl, einheit, unterzeile, farbe)
+            if stand == getattr(self, "_letzter_stand", None):
+                return
+            self._letzter_stand = stand
+
             self._zahl_label.configure(text=zahl, text_color=farbe or self._farbe)
             self._einheit_label.configure(text=einheit)
             self._unterzeile_label.configure(text=unterzeile)
