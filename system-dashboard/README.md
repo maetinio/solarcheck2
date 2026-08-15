@@ -86,6 +86,13 @@ UAC-Abfrage).
 CPU- und GPU-Temperatur werden über **LibreHardwareMonitor** gelesen. Die
 dafür nötige DLL liegt aus Lizenzgründen nicht bei:
 
+> **Wichtig:** pythonnet lädt die DLL in das klassische **.NET Framework**.
+> Es muss daher die **net472-Variante** der Bibliothek sein — die Builds
+> „.NET 8" / „.NET 10" aus den neuesten Releases funktionieren **nicht**
+> (Symptom: „No module named 'LibreHardwareMonitor'"). Am besten alle DLLs
+> aus dem net472-Paket zusammen nach `lib/` kopieren, damit auch die
+> Abhängigkeiten (HidSharp usw.) auffindbar sind.
+
 1. `LibreHardwareMonitorLib.dll` von der offiziellen Quelle herunterladen:
    <https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases>
 2. Die Datei (und am besten auch die im selben ZIP enthaltene
@@ -99,13 +106,16 @@ dafür nötige DLL liegt aus Lizenzgründen nicht bei:
 4. Die App als **Administrator** starten — ohne erhöhte Rechte geben die
    Sensoren in der Regel keine Werte zurück.
 
-Bequem per PowerShell (aus dem Ordner `system-dashboard/`):
+Bequem per PowerShell (aus dem Ordner `system-dashboard/`) — sucht in den
+Releases automatisch nach dem net472-Paket und kopiert alle DLLs:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases/latest/download/LibreHardwareMonitor-net472.zip" -OutFile lhm.zip
-Expand-Archive lhm.zip -DestinationPath lhm -Force
-Copy-Item lhm\LibreHardwareMonitorLib.dll lib\
-Copy-Item lhm\HidSharp.dll lib\ -ErrorAction SilentlyContinue
+$rels = Invoke-RestMethod "https://api.github.com/repos/LibreHardwareMonitor/LibreHardwareMonitor/releases"
+$asset = $rels | ForEach-Object { $_.assets } | Where-Object { $_.name -match 'net4|4\.7' } | Select-Object -First 1
+Invoke-WebRequest $asset.browser_download_url -OutFile lhm472.zip
+Expand-Archive lhm472.zip -DestinationPath lhm472 -Force
+Remove-Item lib\*.dll -ErrorAction SilentlyContinue
+Get-ChildItem lhm472 -Recurse -Filter *.dll | Copy-Item -Destination lib\ -Force
 Unblock-File lib\*.dll
 ```
 

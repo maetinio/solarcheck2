@@ -88,11 +88,23 @@ def _initialisieren() -> None:
         _init_fehler = "DLL-Laden fehlgeschlagen - " + " | ".join(lade_fehler)
         return
 
-    # 3) Computer-Objekt öffnen (hier zeigen sich fehlende Adminrechte
-    #    oder eine blockierte/inkompatible DLL).
+    # 3) Namespace importieren. Scheitert das trotz "erfolgreichem" Laden,
+    #    ist die DLL fast immer für das falsche Runtime-Ziel gebaut
+    #    (.NET 8/10 statt .NET Framework) - pythonnet nutzt standardmäßig
+    #    das klassische .NET Framework.
     try:
         from LibreHardwareMonitor.Hardware import Computer  # type: ignore[import-not-found]
+    except Exception as fehler:
+        _init_fehler = (
+            f"Namespace-Import fehlgeschlagen: {fehler} - die DLL ist "
+            "vermutlich ein .NET-8/10-Build. Bitte die net472-Variante "
+            "(.NET Framework) verwenden, siehe README."
+        )
+        return
 
+    # 4) Computer-Objekt öffnen (hier zeigen sich fehlende Adminrechte
+    #    oder eine blockierte DLL).
+    try:
         computer = Computer()
         computer.IsCpuEnabled = True
         computer.IsGpuEnabled = True
