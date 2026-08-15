@@ -999,9 +999,20 @@ class Dashboard(ctk.CTk):
     ) -> None:
         """Gemeinsame Anzeige-Logik der beiden Temperatur-Kacheln."""
         if celsius is None:
-            # Kein Sensor: "n/a", grauer Ring, Buttons deaktiviert.
+            # Kein Sensor: "n/a", grauer Ring, Buttons deaktiviert. Der
+            # Hinweis unterscheidet: DLL gar nicht da vs. Laden/Sensor schlug
+            # fehl (Details liefert dann selbsttest.py).
+            import os as _os
+
+            from . import hardware as _hardware
+
+            hinweis = (
+                "DLL fehlt → README"
+                if not _os.path.isfile(_hardware.DLL_PFAD)
+                else "siehe selbsttest.py"
+            )
             gauge.set_value(None, "n/a", meta_oben="Kein Sensor",
-                            meta_unten="DLL fehlt?", na=True)
+                            meta_unten=hinweis, na=True)
             kachel.set_akzent(theme.DISABLED_GRAY)
             kachel.set_warnung(False)
             kachel.set_button_zustand(0, False)

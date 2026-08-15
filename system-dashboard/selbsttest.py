@@ -203,10 +203,19 @@ def main() -> int:
     @pruefe("DLL laden + Computer öffnen", warn_statt_fehler=True)
     def _():
         assert hardware.sensoren_verfuegbar(), (
-            "DLL fehlt, pythonnet fehlt oder Öffnen fehlgeschlagen "
-            "-> Kacheln zeigen 'n/a' (dokumentierter Fallback)"
+            hardware.init_fehler()
+            or "unbekannter Grund -> Kacheln zeigen 'n/a' (dokumentierter Fallback)"
         )
         return "Computer-Objekt geöffnet"
+
+    @pruefe("Gefundene Temperatursensoren", warn_statt_fehler=True)
+    def _():
+        sensoren = hardware.sensor_uebersicht()
+        assert sensoren, "Liste leer (DLL nicht geladen oder keine Sensoren gemeldet)"
+        print()
+        for hw_typ, name, wert in sensoren:
+            print(f"           · {hw_typ:12s} {name:28s} {wert}")
+        return f"{len(sensoren)} Temperatursensoren"
 
     @pruefe("CPU-Temperatur lesen", warn_statt_fehler=True)
     def _():
