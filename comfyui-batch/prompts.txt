@@ -1,0 +1,4 @@
+# Eine Zeile = ein Prompt. Leere Zeilen und Zeilen mit # werden uebersprungen.
+a red fox running through deep snow, cinematic lighting, slow motion
+a drone shot flying over a neon city at night, rain, reflections
+close-up of coffee being poured into a glass cup, morning light
