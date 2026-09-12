@@ -95,7 +95,7 @@ class Dashboard(ctk.CTk):
     def _fenster_einrichten(self) -> None:
         ctk.set_appearance_mode("dark")
         self.title("System-Dashboard")
-        self.geometry("1180x760")
+        self.geometry("1180x980")
         self.minsize(960, 640)
         self.configure(fg_color=theme.BG_DARK)
 
@@ -295,6 +295,7 @@ class Dashboard(ctk.CTk):
         self._kachel_temp_dateien_bauen()
         self._kachel_windows_update_bauen()
         self._kachel_system_bauen()
+        self._kachel_wartung_bauen()
 
         self._kacheln_anordnen(4)
         self.bind("<Configure>", self._bei_groessenaenderung)
@@ -567,7 +568,7 @@ class Dashboard(ctk.CTk):
         self._stat_temp.pack(fill="both", expand=True)
 
         self._kachel_temp.add_button("Löschen", self._aktion_temp_loeschen, primaer=True)
-        self._kachel_temp.add_button("Reinigung öffnen", self._aktion_reinigung_oeffnen)
+        self._kachel_temp.add_button("Reinigung", self._aktion_reinigung_oeffnen)
 
     # -- Kachel 11: Windows-Update ----------------------------------------
 
@@ -637,6 +638,33 @@ class Dashboard(ctk.CTk):
             "Systeminfo", lambda: self._melde(actions.run("msinfo32"))
         )
         self._kachel_system.add_button("Neustart", self._aktion_neustart)
+
+    # -- Kachel 13: Wartung (App-Updates + Viren-Scan) ---------------------
+
+    def _kachel_wartung_bauen(self) -> None:
+        self._kachel_wartung = self._kachel_anlegen(
+            "Wartung", "Updates & Schutz", "🛠", theme.ACCENT_PURPLE
+        )
+        self._stat_wartung = StatValue(
+            self._kachel_wartung.body, farbe=theme.ACCENT_PURPLE
+        )
+        self._stat_wartung.pack(fill="both", expand=True)
+
+        # Beide Aktionen verlangen erhöhte Rechte: winget muss Programme
+        # systemweit ersetzen, MRT ist ein Systemwerkzeug.
+        self._kachel_wartung.add_button(
+            "Aktualisieren",
+            self._aktion_winget_upgrade,
+            primaer=True,
+            admin_erforderlich=True,
+            ist_admin=self.ist_admin,
+        )
+        self._kachel_wartung.add_button(
+            "Viren-Scan",
+            self._aktion_mrt,
+            admin_erforderlich=True,
+            ist_admin=self.ist_admin,
+        )
 
     # ------------------------------------------------------------------
     # Aktionen
@@ -815,6 +843,29 @@ class Dashboard(ctk.CTk):
 
         threading.Thread(target=im_hintergrund, daemon=True).start()
 
+    def _aktion_winget_upgrade(self) -> None:
+        """Aktualisiert nach Rückfrage alle per winget verwalteten Programme."""
+        dialog = BestaetigungsDialog(
+            self,
+            "Alle Apps aktualisieren",
+            "Alle über winget verwalteten Programme werden auf die neueste "
+            "Version gebracht. Der Vorgang läuft in einem eigenen "
+            "Konsolenfenster und kann mehrere Minuten dauern.",
+            bestaetigen_text="Jetzt aktualisieren",
+            gefaehrlich=False,
+        )
+        if dialog.warte_auf_antwort() is not True:
+            return
+
+        self._melde(actions.winget_upgrade_alle())
+        # Die Zählung erst nach einigen Minuten auffrischen - währenddessen
+        # laufen die Updates noch und der Wert wäre ohnehin veraltet.
+        self.after(180000, system_info.winget_neu_messen)
+
+    def _aktion_mrt(self) -> None:
+        """Startet das Windows-Tool zum Entfernen bösartiger Software."""
+        self._melde(actions.mrt_starten())
+
     def _aktion_neustart(self) -> None:
         """Fährt den Rechner nach Sicherheitsabfrage neu hoch."""
         dialog = BestaetigungsDialog(
@@ -897,6 +948,7 @@ class Dashboard(ctk.CTk):
             self._update_temp_dateien,
             self._update_windows_update,
             self._update_system,
+            self._update_wartung,
         ):
             try:
                 aktualisieren(daten)
@@ -1124,6 +1176,38 @@ class Dashboard(ctk.CTk):
             self._label_hostname, f"Laufzeit · {system['hostname']}"
         )
         self._kachel_system.set_untertitel(system["os_name"])
+
+    def _update_wartung(self, daten: dict) -> None:
+        wartung = daten.get("wartung")
+        if wartung is None:
+            return
+
+        datum = wartung.get("mrt_datum")
+        mrt_zeile = f"Viren-Scan: {datum}" if datum else "Viren-Scan: kein Protokoll"
+
+        if not wartung.get("winget_da"):
+            # Ohne App-Installer gibt es keine winget-Daten - die Kachel
+            # bleibt nutzbar, der Viren-Scan funktioniert unabhängig davon.
+            self._stat_wartung.set_value(
+                "n/a", "", "winget nicht installiert", farbe=theme.TEXT_DIM
+            )
+            self._kachel_wartung.set_untertitel(mrt_zeile)
+            return
+
+        anzahl = wartung.get("winget_anzahl")
+        if anzahl is None:
+            text = "…" if wartung.get("winget_laeuft") else "—"
+            self._stat_wartung.set_value(text, "", "suche App-Updates …")
+            self._kachel_wartung.set_untertitel(mrt_zeile)
+            return
+
+        # Offene Updates sind ein Handlungshinweis -> gelb, sonst blau.
+        farbe = theme.ACCENT_YELLOW if anzahl > 0 else theme.ACCENT_BLUE
+        self._stat_wartung.set_value(
+            str(anzahl), "App-Updates", mrt_zeile, farbe=farbe
+        )
+        self._kachel_wartung.set_akzent(farbe)
+        self._kachel_wartung.set_untertitel("Updates & Schutz")
 
     def _manuelle_aktualisierung(self, still: bool = False) -> None:
         """Erzwingt ein sofortiges Neuladen aller Werte (auch der gecachten)."""

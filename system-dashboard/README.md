@@ -1,6 +1,6 @@
 # System-Dashboard
 
-Ein natives Windows-Desktop-Dashboard mit 12 Kacheln. Jede Kachel zeigt oben
+Ein natives Windows-Desktop-Dashboard mit 13 Kacheln. Jede Kachel zeigt oben
 eine Live-System-Info (runder Gauge, Balken oder große Zahl) und darunter ein
 bis zwei Aktions-Buttons, die entweder direkt etwas ausführen oder den
 passenden Windows-Dialog öffnen.
@@ -24,13 +24,14 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Das Fenster öffnet sich in 1180×760 und lässt sich bis ~960×640 verkleinern.
+Das Fenster öffnet sich in 1180×980 (so sind alle 13 Kacheln ohne Scrollen
+sichtbar) und lässt sich bis ~960×640 verkleinern; das Raster scrollt dann.
 Wird es sehr schmal gezogen, wechselt das Raster von 4 auf 2 Spalten und lässt
 sich scrollen.
 
 ---
 
-## Die 12 Kacheln
+## Die 13 Kacheln
 
 | # | Kachel | Anzeige | Buttons |
 |---|--------|---------|---------|
@@ -43,9 +44,10 @@ sich scrollen.
 | 7 | Netzwerk | zwei große Zahlen | Einstellungen · IP erneuern 🛡 |
 | 8 | Autostart | große Zahl | Verwalten · Liste |
 | 9 | Papierkorb | große Zahl | Leeren · Öffnen |
-| 10 | Temporäre Dateien | große Zahl | Löschen · Reinigung öffnen |
+| 10 | Temporäre Dateien | große Zahl | Löschen · Reinigung |
 | 11 | Windows-Update | Statustext | Nach Updates suchen |
 | 12 | System | Laufzeit | Systeminfo · Neustart |
+| 13 | Wartung | große Zahl (offene App-Updates) | Aktualisieren 🛡 · Viren-Scan 🛡 |
 
 **Laptop-Sonderfall:** Meldet Windows einen Akku, ersetzt eine **Akku**-Kachel
 (Ladestand als Ring, Restlaufzeit, Netzbetrieb) automatisch die
@@ -63,6 +65,32 @@ Temperatur: **< 60 °C** blau · **60–80 °C** gelb · **> 80 °C** lila.
 Die obere Temperaturschwelle lässt sich pro Kachel über den Button
 *Warnschwelle* ändern; oberhalb davon färbt sich die Kachel lila und zeigt ein
 Warnzeichen.
+
+---
+
+## Wartung: App-Updates und Viren-Scan
+
+Die Kachel **Wartung** bündelt zwei Windows-Bordmittel:
+
+* **Aktualisieren 🛡** führt `winget upgrade --all` aus und bringt damit alle
+  über den Windows-Paketmanager verwalteten Programme auf den neuesten Stand.
+  Der Vorgang läuft nach einer Rückfrage bewusst in einem **sichtbaren
+  Konsolenfenster** (er dauert mehrere Minuten und zeigt dort den Fortschritt
+  je Paket). Als Live-Wert zeigt die Kachel, wie viele Programme aktuell ein
+  Update hätten — ermittelt aus der Ausgabe von `winget upgrade`. Diese Abfrage
+  braucht einige Sekunden und läuft deshalb in einem eigenen Thread, höchstens
+  alle 30 Minuten; der Button **↻ Aktualisieren** in der Kopfzeile erzwingt eine
+  sofortige Neumessung.
+* **Viren-Scan 🛡** startet `MRT.exe`, das *Windows-Tool zum Entfernen bösartiger
+  Software*. Es bringt einen eigenen Assistenten mit, in dem sich Scan-Umfang
+  wählen und der Vorgang jederzeit abbrechen lässt. Unter der Zahl zeigt die
+  Kachel das Datum des letzten MRT-Laufs, gelesen aus `C:\Windows\debug\mrt.log`.
+
+Beide Aktionen brauchen Administratorrechte und sind ohne diese ausgegraut.
+Fehlt `winget` (älteres Windows ohne App-Installer), zeigt die Kachel „n/a"; der
+Viren-Scan funktioniert davon unabhängig weiter.
+
+---
 
 ---
 

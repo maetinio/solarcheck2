@@ -15,10 +15,15 @@ from __future__ import annotations
 
 import os
 import platform
+import re
+import shutil
 import socket
+import subprocess
 import sys
+import threading
 import time
 from collections import deque
+from datetime import datetime
 from typing import Optional, TypedDict
 
 import psutil
@@ -39,6 +44,13 @@ _letzte_netz_messung: Optional[tuple[float, int, int]] = None
 
 # TTL-Cache für teure Abfragen: schluessel -> (zeitpunkt, wert).
 _cache: dict[str, tuple[float, object]] = {}
+
+# Zustand der winget-Messung. winget braucht je nach Netzverbindung mehrere
+# Sekunden, darf den 2-Sekunden-Zyklus also nicht blockieren - die Messung
+# läuft daher in einem eigenen Thread, snapshot() liest nur das Ergebnis.
+WINGET_MESSINTERVALL_SEKUNDEN = 1800.0
+_winget_lock = threading.Lock()
+_winget_stand: dict = {"anzahl": None, "zeitpunkt": 0.0, "laeuft": False}
 
 
 def _gecacht(schluessel: str, ttl_sekunden: float, berechnen):
@@ -366,7 +378,6 @@ def windows_update_status() -> dict:
 
     try:
         import winreg
-        from datetime import datetime
 
         pfad = (
             r"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate"
@@ -447,6 +458,130 @@ def akku_info() -> Optional[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Wartung: App-Updates (winget) und Viren-Scan (MRT)
+# ---------------------------------------------------------------------------
+
+
+def winget_pfad() -> Optional[str]:
+    """Pfad zu winget.exe, oder None wenn der App-Installer fehlt."""
+    try:
+        return shutil.which("winget")
+    except Exception:
+        return None
+
+
+def _winget_tabelle_zaehlen(ausgabe: str) -> int:
+    """Zählt die Paketzeilen in der Tabellenausgabe von "winget upgrade".
+
+    winget gibt eine Kopfzeile, eine Strich-Trennlinie und danach je Paket
+    eine Zeile aus (Name, Id, Version, Verfügbar, Quelle). Abschlusszeilen
+    wie "3 Upgrades verfügbar." haben deutlich weniger Spalten und werden
+    dadurch zuverlässig aussortiert - unabhängig von der Sprache.
+    """
+    zeilen = ausgabe.splitlines()
+
+    start = None
+    for index, zeile in enumerate(zeilen):
+        inhalt = zeile.strip()
+        # Trennlinie unter der Kopfzeile: ausschließlich Striche.
+        if len(inhalt) >= 10 and set(inhalt) == {"-"}:
+            start = index + 1
+            break
+    if start is None:
+        return 0
+
+    anzahl = 0
+    for zeile in zeilen[start:]:
+        inhalt = zeile.strip()
+        if not inhalt:
+            continue
+        spalten = [teil for teil in re.split(r"\s{2,}", inhalt) if teil]
+        if len(spalten) >= 4:
+            anzahl += 1
+    return anzahl
+
+
+def winget_messen() -> Optional[int]:
+    """Ermittelt blockierend, wie viele Programme aktualisiert werden können.
+
+    Rückgabe None bedeutet: winget fehlt oder der Aufruf schlug fehl.
+    Diese Funktion braucht mehrere Sekunden - im Dashboard wird sie daher
+    ausschließlich über winget_messung_anstossen() im Thread aufgerufen.
+    """
+    pfad = winget_pfad()
+    if pfad is None:
+        return None
+    try:
+        ergebnis = subprocess.run(
+            [pfad, "upgrade", "--accept-source-agreements"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+            creationflags=actions.CREATE_NO_WINDOW,
+            timeout=180,
+        )
+    except Exception:
+        return None
+    return _winget_tabelle_zaehlen(ergebnis.stdout or "")
+
+
+def winget_messung_anstossen() -> None:
+    """Startet bei Bedarf eine winget-Messung in einem eigenen Thread."""
+    jetzt = time.time()
+    with _winget_lock:
+        if _winget_stand["laeuft"]:
+            return
+        if jetzt - _winget_stand["zeitpunkt"] < WINGET_MESSINTERVALL_SEKUNDEN:
+            return
+        _winget_stand["laeuft"] = True
+
+    def messen() -> None:
+        anzahl = winget_messen()
+        with _winget_lock:
+            _winget_stand["anzahl"] = anzahl
+            _winget_stand["zeitpunkt"] = time.time()
+            _winget_stand["laeuft"] = False
+
+    threading.Thread(target=messen, daemon=True).start()
+
+
+def winget_neu_messen() -> None:
+    """Erzwingt beim nächsten Zyklus eine frische winget-Messung."""
+    with _winget_lock:
+        _winget_stand["zeitpunkt"] = 0.0
+
+
+def mrt_letzter_scan() -> Optional[str]:
+    """Datum des letzten MRT-Laufs, gelesen aus dessen Protokolldatei."""
+    try:
+        pfad = os.path.join(
+            os.environ.get("SystemRoot", r"C:\Windows"), "debug", "mrt.log"
+        )
+        if not os.path.isfile(pfad):
+            return None
+        return datetime.fromtimestamp(os.path.getmtime(pfad)).strftime("%d.%m.%Y")
+    except Exception:
+        return None
+
+
+def wartung_info() -> dict:
+    """Sammelt Wartungsdaten: offene App-Updates und letzter MRT-Scan."""
+    winget_messung_anstossen()
+    with _winget_lock:
+        anzahl = _winget_stand["anzahl"]
+        laeuft = _winget_stand["laeuft"]
+        gemessen = _winget_stand["zeitpunkt"] > 0.0
+    return {
+        "winget_anzahl": anzahl,
+        "winget_laeuft": laeuft,
+        "winget_gemessen": gemessen,
+        "winget_da": bool(_gecacht("winget_da", 300.0, winget_pfad)),
+        "mrt_datum": _gecacht("mrt_datum", 300.0, mrt_letzter_scan),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Gesamt-Momentaufnahme (wird alle ~2 s vom Hintergrund-Thread aufgerufen)
 # ---------------------------------------------------------------------------
 
@@ -474,6 +609,7 @@ def snapshot() -> dict:
     }
     ergebnis["system"] = system_details()
     ergebnis["akku"] = akku_info()
+    ergebnis["wartung"] = wartung_info()
     return ergebnis
 
 
@@ -484,3 +620,4 @@ def cache_leeren() -> None:
     Kacheln (auch die gecachten) sofort neue Werte bekommen.
     """
     _cache.clear()
+    winget_neu_messen()

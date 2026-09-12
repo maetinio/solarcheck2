@@ -18,6 +18,10 @@ from typing import Optional, Sequence, Union
 # Entwickeln/Testen) existiert das Flag nicht - dann einfach 0 verwenden.
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
+# Gegenstück für die wenigen Fälle, in denen ein Konsolenfenster erwünscht
+# ist (siehe run_sichtbar).
+CREATE_NEW_CONSOLE = 0x00000010 if sys.platform == "win32" else 0
+
 # Flags für SHEmptyRecycleBinW: keine Rückfrage, kein Fortschritts-Dialog,
 # kein Sound - die Bestätigung übernimmt unser eigener Dialog.
 _SHERB_NOCONFIRMATION = 0x00000001
@@ -71,6 +75,21 @@ def run_und_warten(befehl: Union[str, Sequence[str]], timeout: float = 60.0) -> 
         return False, f"Befehl endete mit Code {ergebnis.returncode}."
     except Exception as fehler:
         return False, f"Befehl fehlgeschlagen: {fehler}"
+
+
+def run_sichtbar(befehl: Union[str, Sequence[str]]) -> tuple[bool, str]:
+    """Startet ein Kommando MIT sichtbarem Konsolenfenster.
+
+    Bewusste Ausnahme von der Regel "keine Konsolenfenster": Bei lange
+    laufenden Vorgängen wie "winget upgrade --all" (mehrere Minuten, mit
+    Fortschrittsanzeige und möglichen Rückfragen) wäre ein unsichtbarer
+    Hintergrundprozess für den Nutzer nicht nachvollziehbar.
+    """
+    try:
+        subprocess.Popen(befehl, creationflags=CREATE_NEW_CONSOLE)
+        return True, "Vorgang wurde in einem Konsolenfenster gestartet."
+    except Exception as fehler:
+        return False, f"Vorgang konnte nicht gestartet werden: {fehler}"
 
 
 def open_settings(uri: str, fallback_befehl: Optional[str] = None) -> tuple[bool, str]:
@@ -359,3 +378,54 @@ def _ordner_groesse_leise(ordner: str) -> int:
     except Exception:
         pass
     return summe
+
+
+# ---------------------------------------------------------------------------
+# Wartung: App-Updates (winget) und Viren-Scan (MRT)
+# ---------------------------------------------------------------------------
+
+
+def winget_upgrade_alle() -> tuple[bool, str]:
+    """Aktualisiert alle über winget verwalteten Programme.
+
+    Läuft bewusst in einem sichtbaren Konsolenfenster: Der Vorgang dauert
+    mehrere Minuten und zeigt dort Fortschritt und Ergebnis je Paket.
+    "cmd /k" hält das Fenster nach dem Durchlauf offen, damit die
+    Zusammenfassung lesbar bleibt.
+    """
+    if not _ist_windows():
+        return False, "winget ist nur unter Windows verfügbar."
+
+    import shutil
+
+    if shutil.which("winget") is None:
+        return False, "winget wurde nicht gefunden (App-Installer fehlt)."
+
+    erfolg, meldung = run_sichtbar(
+        "cmd /k winget upgrade --all "
+        "--accept-source-agreements --accept-package-agreements"
+    )
+    if erfolg:
+        return True, "App-Updates laufen im Konsolenfenster."
+    return erfolg, meldung
+
+
+def mrt_starten() -> tuple[bool, str]:
+    """Startet das Windows-Tool zum Entfernen bösartiger Software (MRT).
+
+    MRT bringt einen eigenen Assistenten mit; der Scan wird dort gestartet
+    und kann jederzeit abgebrochen werden.
+    """
+    if not _ist_windows():
+        return False, "MRT ist nur unter Windows verfügbar."
+
+    pfad = os.path.join(
+        os.environ.get("SystemRoot", r"C:\Windows"), "System32", "MRT.exe"
+    )
+    if not os.path.isfile(pfad):
+        return False, "MRT.exe wurde auf diesem System nicht gefunden."
+
+    erfolg, meldung = run([pfad])
+    if erfolg:
+        return True, "Tool zum Entfernen bösartiger Software wurde gestartet."
+    return erfolg, meldung

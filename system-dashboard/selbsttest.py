@@ -188,6 +188,32 @@ def main() -> int:
             + " -> Akku-Kachel ersetzt GPU-Kachel (Laptop)"
         )
 
+    @pruefe("winget vorhanden", warn_statt_fehler=True)
+    def _():
+        pfad = system_info.winget_pfad()
+        assert pfad, "winget nicht gefunden (App-Installer fehlt) -> Kachel zeigt 'n/a'"
+        return pfad
+
+    @pruefe("App-Updates zählen (winget upgrade)", warn_statt_fehler=True)
+    def _():
+        if system_info.winget_pfad() is None:
+            raise AssertionError("übersprungen, da winget fehlt")
+        print("           (winget wird abgefragt, das dauert einen Moment …)")
+        anzahl = system_info.winget_messen()
+        assert anzahl is not None, "winget lieferte kein auswertbares Ergebnis"
+        return f"{anzahl} Programme können aktualisiert werden"
+
+    @pruefe("MRT vorhanden + letzter Scan", warn_statt_fehler=True)
+    def _():
+        pfad = os.path.join(
+            os.environ.get("SystemRoot", r"C:\Windows"), "System32", "MRT.exe"
+        )
+        assert os.path.isfile(pfad), f"MRT.exe nicht gefunden: {pfad}"
+        datum = system_info.mrt_letzter_scan()
+        return pfad + (
+            f" · letzter Scan {datum}" if datum else " · noch kein Protokoll"
+        )
+
     # ------------------------------------------------------------------
     print()
     print("--- 4. Hardware-Sensoren (LibreHardwareMonitor) " + "-" * 18)

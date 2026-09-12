@@ -218,12 +218,18 @@ class Tile(ctk.CTkFrame):
         return button
 
     def _buttons_neu_anordnen(self) -> None:
-        """Verteilt alle Buttons zu gleichen Teilen über die volle Breite."""
-        for button in self._buttons:
-            button.pack_forget()
+        """Verteilt alle Buttons auf exakt gleich breite Spalten.
+
+        Bewusst grid statt pack: pack verteilt nur den *zusätzlichen* Platz
+        gleichmäßig, sodass ein Button mit längerer Beschriftung breiter
+        wird und der kürzere Nachbar seinen Text abschneidet.
+        """
         for index, button in enumerate(self._buttons):
             padx = (0, 6) if index < len(self._buttons) - 1 else (0, 0)
-            button.pack(side="left", fill="x", expand=True, padx=padx)
+            button.grid(row=0, column=index, sticky="ew", padx=padx)
+            self._button_leiste.grid_columnconfigure(
+                index, weight=1, uniform="buttonspalte"
+            )
 
     def set_button_zustand(self, index: int, aktiviert: bool) -> None:
         """Aktiviert/deaktiviert einen Button nachträglich (z. B. Sensor fehlt).
