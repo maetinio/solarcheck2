@@ -218,6 +218,7 @@ system-dashboard/
 ├─ Dashboard-starten.bat   Doppelklick-Start (ohne Konsole, als Admin)
 ├─ Verknuepfung-erstellen.bat   legt die Desktop-Verknüpfung an
 ├─ Verknuepfung-erstellen.ps1   deren Logik (Symbol + Admin-Flag)
+├─ EXE-bauen.bat           baut die eigenständige System-Dashboard.exe
 ├─ selbsttest.py           prüft die Windows-Anbindung (nur Lesezugriffe)
 ├─ requirements.txt
 ├─ README.md
@@ -244,30 +245,44 @@ system-dashboard/
 
 ## Als einzelne .exe verpacken
 
-Mit **PyInstaller** lässt sich die App zu einer einzelnen ausführbaren Datei
-bündeln. Empfohlener Befehl (aus dem Ordner `system-dashboard/`, die
-Sensor-DLLs müssen dafür bereits in `lib/` liegen):
+Die fertige `.exe` läuft eigenständig — auf dem Zielrechner muss **kein
+Python** installiert sein. Am einfachsten per Doppelklick auf
+**`EXE-bauen.bat`**: Das Skript prüft Python, installiert fehlende Pakete und
+PyInstaller nach, baut und sagt am Ende, wo die Datei liegt.
+
+Von Hand geht es genauso (aus dem Ordner `system-dashboard/`):
 
 ```bat
 pip install pyinstaller
 pyinstaller --onefile --windowed --uac-admin --name System-Dashboard --icon "assets\dashboard.ico" --add-data "lib;lib" --collect-all customtkinter --collect-all pythonnet --collect-all clr_loader main.py
 ```
 
-Die fertige Datei liegt anschließend unter `dist\System-Dashboard.exe`.
+Ergebnis: **`dist\System-Dashboard.exe`** (rund 20–40 MB). Der Build dauert
+einige Minuten.
 
-Hinweise:
+Was die Optionen bewirken:
 
-* `--windowed` verhindert, dass beim Start ein Konsolenfenster aufgeht.
-* `--add-data "lib;lib"` nimmt die LibreHardwareMonitor-DLLs mit ins Paket.
-  Unter Windows ist das Trennzeichen ein **Semikolon** (nicht `:`).
-* `--collect-all customtkinter` bündelt die Theme-Dateien von customtkinter -
-  ohne sie startet die gepackte App nicht.
-* `--collect-all pythonnet --collect-all clr_loader` bündelt die
-  .NET-Brücke vollständig (Python.Runtime.dll und die Runtime-Lader) -
-  sonst bleiben die Temperatur-Kacheln in der .exe auf "n/a".
+* `--onefile --windowed` — eine einzige Datei, kein Konsolenfenster.
+* `--uac-admin` — die .exe fragt beim Start nach Administratorrechten; nötig
+  für Temperatursensoren, Wartung und die Admin-Aktionen.
 * `--icon "assets\dashboard.ico"` gibt der .exe das Programmsymbol der App.
-* Der erste Start einer frisch gebauten .exe kann von Windows SmartScreen
-  angehalten werden: "Weitere Informationen" → "Trotzdem ausführen".
+* `--add-data "lib;lib"` nimmt die LibreHardwareMonitor-DLLs mit ins Paket.
+  Unter Windows ist das Trennzeichen ein **Semikolon** (nicht `:`), und der
+  Pfad wird relativ zum Ordner der `.spec`-Datei aufgelöst — deshalb den
+  Befehl aus dem Projektordner heraus starten.
+* `--collect-all customtkinter` bündelt dessen Theme-Dateien; ohne sie startet
+  die gepackte App nicht.
+* `--collect-all pythonnet --collect-all clr_loader` bündelt die .NET-Brücke
+  vollständig — sonst bleiben die Temperatur-Kacheln in der .exe auf „n/a".
+
+**Sensor-DLL nachrüsten ohne Neubau:** Die App sucht die
+`LibreHardwareMonitorLib.dll` zuerst im Paket, dann in einem Ordner `lib`
+**neben der .exe** und zuletzt direkt daneben. Wer die .exe ohne DLL gebaut
+hat, legt sie also einfach nachträglich dazu.
+
+**Beim ersten Start** kann Windows SmartScreen anspringen: *Weitere
+Informationen* → *Trotzdem ausführen*. Manche Virenscanner beäugen
+PyInstaller-Einzeldateien grundsätzlich misstrauisch.
 
 ### Die .exe standardmäßig als Administrator starten
 

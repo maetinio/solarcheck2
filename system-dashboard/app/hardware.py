@@ -18,10 +18,35 @@ import os
 import sys
 from typing import Optional
 
-# Pfad zur DLL: liegt im Projektordner unter lib/.
-_PROJEKT_ORDNER = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LIB_ORDNER = os.path.join(_PROJEKT_ORDNER, "lib")
-DLL_PFAD = os.path.join(LIB_ORDNER, "LibreHardwareMonitorLib.dll")
+# Pfad zur DLL. Im Skript-Betrieb liegt sie im Projektordner unter lib/.
+# In einer mit PyInstaller gebauten .exe entpackt Windows die mitgepackten
+# Dateien in ein temporäres Verzeichnis (sys._MEIPASS) - zusätzlich wird
+# neben der .exe gesucht, damit sich die DLL dort auch nachträglich
+# ergänzen oder austauschen lässt, ohne neu zu bauen.
+DLL_DATEINAME = "LibreHardwareMonitorLib.dll"
+
+
+def _dll_kandidaten() -> list[str]:
+    """Mögliche Ablageorte der Sensor-DLL in Suchreihenfolge."""
+    ordner: list[str] = []
+    if getattr(sys, "frozen", False):
+        entpackt = getattr(sys, "_MEIPASS", None)
+        if entpackt:
+            ordner.append(os.path.join(entpackt, "lib"))
+        neben_exe = os.path.dirname(os.path.abspath(sys.executable))
+        ordner.append(os.path.join(neben_exe, "lib"))
+        ordner.append(neben_exe)
+    else:
+        projekt = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ordner.append(os.path.join(projekt, "lib"))
+    return [os.path.join(eintrag, DLL_DATEINAME) for eintrag in ordner]
+
+
+KANDIDATEN = _dll_kandidaten()
+# Erster tatsächlich vorhandener Treffer; sonst der bevorzugte Ort, damit
+# Fehlermeldungen einen sinnvollen Pfad nennen können.
+DLL_PFAD = next((pfad for pfad in KANDIDATEN if os.path.isfile(pfad)), KANDIDATEN[0])
+LIB_ORDNER = os.path.dirname(DLL_PFAD)
 
 # Modulzustand: Computer-Objekt aus LibreHardwareMonitor (oder None).
 _computer = None
@@ -40,7 +65,11 @@ def _initialisieren() -> None:
         _init_fehler = "Nur unter Windows verfügbar."
         return
     if not os.path.isfile(DLL_PFAD):
-        _init_fehler = f"DLL nicht gefunden: {DLL_PFAD}"
+        if len(KANDIDATEN) > 1:
+            geprueft = "; ".join(KANDIDATEN)
+            _init_fehler = f"DLL nicht gefunden. Geprüft wurde: {geprueft}"
+        else:
+            _init_fehler = f"DLL nicht gefunden: {DLL_PFAD}"
         return
 
     # 1) pythonnet laden.
