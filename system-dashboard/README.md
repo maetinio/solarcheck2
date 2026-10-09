@@ -20,9 +20,27 @@ pip install -r requirements.txt
 
 ## Starten
 
+Am bequemsten per **Doppelklick** — dafür liegen zwei Dateien im Projektordner:
+
+| Datei | Wirkung |
+|---|---|
+| **`Dashboard-starten.bat`** | Startet die App sofort, ohne Konsolenfenster und mit Administratorrechten (Windows fragt per UAC nach). |
+| **`Verknuepfung-erstellen.bat`** | Einmal ausführen → legt die Verknüpfung **„System-Dashboard"** mit eigenem Symbol auf dem Desktop ab. Ab dann genügt ein Doppelklick darauf. |
+
+Alternativ klassisch über die Kommandozeile:
+
 ```bat
 python main.py
 ```
+
+Die Desktop-Verknüpfung startet `pythonw.exe` (also ohne Konsolenfenster) mit
+gesetztem Flag *Als Administrator ausführen* — nötig für Temperatursensoren und
+die Wartungs-Aktionen. Soll die UAC-Abfrage nicht kommen: Rechtsklick auf die
+Verknüpfung → *Eigenschaften* → *Erweitert* → Haken entfernen; die betroffenen
+Aktionen sind dann ausgegraut.
+
+Wer gar kein Python installiert haben möchte, baut sich eine einzelne `.exe` —
+siehe [Als einzelne .exe verpacken](#als-einzelne-exe-verpacken) am Ende.
 
 Das Fenster öffnet sich in 1180×980 (so sind alle 13 Kacheln ohne Scrollen
 sichtbar) und lässt sich bis ~960×640 verkleinern; das Raster scrollt dann.
@@ -197,8 +215,15 @@ cleanmgr /sagerun:1     :: danach: gespeicherte Auswahl ohne Rückfrage ausführ
 ```
 system-dashboard/
 ├─ main.py                 Einstiegspunkt: Admin-Check, Fenster starten
+├─ Dashboard-starten.bat   Doppelklick-Start (ohne Konsole, als Admin)
+├─ Verknuepfung-erstellen.bat   legt die Desktop-Verknüpfung an
+├─ Verknuepfung-erstellen.ps1   deren Logik (Symbol + Admin-Flag)
+├─ selbsttest.py           prüft die Windows-Anbindung (nur Lesezugriffe)
 ├─ requirements.txt
 ├─ README.md
+├─ assets/
+│  ├─ dashboard.ico        Programmsymbol für Verknüpfung und .exe
+│  └─ icon_erzeugen.py     erzeugt das Symbol neu (optional)
 ├─ app/
 │  ├─ theme.py             Farben, Schriftgrößen, status_color / temp_color
 │  ├─ dashboard.py         Hauptfenster, Kopfzeile, Raster, Refresh-Loop
@@ -225,7 +250,7 @@ Sensor-DLLs müssen dafür bereits in `lib/` liegen):
 
 ```bat
 pip install pyinstaller
-pyinstaller --onefile --windowed --uac-admin --name System-Dashboard --add-data "lib;lib" --collect-all customtkinter --collect-all pythonnet --collect-all clr_loader main.py
+pyinstaller --onefile --windowed --uac-admin --name System-Dashboard --icon "assets\dashboard.ico" --add-data "lib;lib" --collect-all customtkinter --collect-all pythonnet --collect-all clr_loader main.py
 ```
 
 Die fertige Datei liegt anschließend unter `dist\System-Dashboard.exe`.
@@ -240,7 +265,7 @@ Hinweise:
 * `--collect-all pythonnet --collect-all clr_loader` bündelt die
   .NET-Brücke vollständig (Python.Runtime.dll und die Runtime-Lader) -
   sonst bleiben die Temperatur-Kacheln in der .exe auf "n/a".
-* Ein eigenes Icon lässt sich mit `--icon meinicon.ico` setzen.
+* `--icon "assets\dashboard.ico"` gibt der .exe das Programmsymbol der App.
 * Der erste Start einer frisch gebauten .exe kann von Windows SmartScreen
   angehalten werden: "Weitere Informationen" → "Trotzdem ausführen".
 

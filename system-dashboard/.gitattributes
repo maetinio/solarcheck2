@@ -1,0 +1,8 @@
+# Windows-Startdateien brauchen CRLF, sonst stolpert der Kommandozeilen-
+# Interpreter ueber die Zeilenenden.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Symbol und sonstige Binaerdateien nie umkodieren.
+*.ico binary
+*.dll binary
